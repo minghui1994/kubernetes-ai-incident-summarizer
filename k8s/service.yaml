@@ -1,0 +1,15 @@
+apiVersion: v1
+kind: Service
+metadata:
+  name: ai-incident-summarizer
+  namespace: ai
+  labels:
+    app: ai-incident-summarizer
+spec:
+  type: ClusterIP
+  selector:
+    app: ai-incident-summarizer
+  ports:
+    - name: http
+      port: 8000
+      targetPort: 8000

@@ -1,0 +1,26 @@
+apiVersion: monitoring.coreos.com/v1alpha1
+kind: AlertmanagerConfig
+metadata:
+  name: ai-incident-summarizer
+  namespace: monitoring
+  labels:
+    release: prometheus
+spec:
+  route:
+    receiver: ai-incident-summarizer
+    matchers:
+      - name: ai_summarizer  # only send alerts with this label
+        value: "true"
+        matchType: "="
+    groupBy:
+      - alertname
+      - namespace
+      - pod
+    groupWait: 10s
+    groupInterval: 1m
+    repeatInterval: 5m
+  receivers:
+    - name: ai-incident-summarizer
+      webhookConfigs:
+        - url: http://ai-incident-summarizer.ai.svc:8000/webhook/alertmanager
+          sendResolved: true

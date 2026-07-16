@@ -1,0 +1,52 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: ai-incident-summarizer
+  namespace: ai
+  labels:
+    app: ai-incident-summarizer
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: ai-incident-summarizer
+  template:
+    metadata:
+      labels:
+        app: ai-incident-summarizer
+    spec:
+      serviceAccountName: ai-incident-summarizer-sa  # To give app permission to call kubernetes API. See rbac/rbac.yaml
+      containers:
+        - name: ai-incident-summarizer
+          image: ai-incident-summarizer:0.8.0
+          imagePullPolicy: Never  # Tells kubernetes not to pull from Docker Hub, use the image already loaded inside Minikube.
+          ports:
+            - name: http
+              containerPort: 8000
+          env:
+            - name: TEAMS_WEBHOOK_URL
+              valueFrom:
+                secretKeyRef:
+                  name: ai-incident-summarizer-secret
+                  key: TEAMS_WEBHOOK_URL
+
+            - name: PROMETHEUS_BASE_URL
+              value: "http://prometheus-kube-prometheus-prometheus.monitoring.svc:9090"
+
+            - name: LLM_BASE_URL
+              value: "http://host.minikube.internal:11434"
+
+            - name: LLM_MODEL
+              value: "gemma3:4b"
+          readinessProbe:
+            httpGet:
+              path: /healthz
+              port: 8000
+            initialDelaySeconds: 3
+            periodSeconds: 10
+          livenessProbe:
+            httpGet:
+              path: /healthz
+              port: 8000
+            initialDelaySeconds: 10
+            periodSeconds: 20

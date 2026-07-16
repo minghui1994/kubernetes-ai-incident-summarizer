@@ -1,0 +1,23 @@
+# Intentionally fire and routes only to ai summarizer
+apiVersion: monitoring.coreos.com/v1
+kind: PrometheusRule
+metadata:
+  name: ai-summarizer-test-alert
+  namespace: monitoring
+  labels:
+    release: prometheus
+spec:
+  groups:
+    - name: ai-summarizer-test.rules
+      rules:
+        - alert: AISummarizerTestAlert
+          expr: vector(1)  # Always true, will keep firing until deleted
+          for: 30s  # Prometheus will fire alert after 30s
+          labels:
+            severity: warning
+            ai_summarizer: "true"
+            namespace: monitoring  # must match alertmanagerconfig namespace
+            pod: test-pod
+          annotations:
+            summary:  "AI summarizer test alert"
+            description: "This is a controlled test alert to verify the Alertmanager to AI summarizer to Teams flow."

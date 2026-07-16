@@ -1,0 +1,25 @@
+apiVersion: monitoring.coreos.com/v1
+kind: PrometheusRule
+metadata:
+  name: ai-summarizer-crash-demo-alert
+  namespace: monitoring
+  labels:
+    release: prometheus
+spec:
+  groups:
+    - name: ai-summarizer-crash-demo.rules
+      rules:
+        - alert: AISummarizerPodCrashLooping
+#          expr: increase(kube_pod_container_status_restarts_total{namespace="ai", pod="crash-demo"}[5m]) > 2
+          expr: increase(kube_pod_container_status_restarts_total{namespace="ai", pod="crash-demo"}[5m]) > 0
+          for: 30s
+          labels:
+            severity: warning
+            ai_summarizer: "true"
+            namespace: monitoring  # For current AertmanagerConfig routing
+            affected_namespace: ai  # Tells our summarizer the actual affected workload is in the ai namespace
+            pod: crash-demo
+          annotations:
+            summary: "Pod crash-demo is restarting repeatedly"
+#            description: "Pod crash-demo in namespace ai has restarted more than 2 times in the last 5 minutes."
+            description: "Pod crash-demo in namespace ai has restarted in the last 5 minutes."

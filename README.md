@@ -1,4 +1,4 @@
-# AI Assisted Kubernetes Incident Summarizer
+# AI-Assisted Kubernetes Incident Summarizer
 
 ## Overview
 
@@ -21,7 +21,7 @@ It then uses a locally hosted large language model to generate structured incide
 4. Prometheus sends the firing alert to `Alertmanager`.
 5. Alertmanager routes opted-in alerts to the `ai-incident-summarizer` application.
 6. The `ai-incident-summarizer` application retrieves Kubernetes events, pod status, previous logs, and relevant Prometheus metrics.
-7. The collected evidence is sent to the self-hosted `Ollama` model outside of the Kubernetes cluster, which enriches the evidence.
+7. The collected evidence is sent to a self-hosted Ollama model outside the Kubernetes cluster, which generates a structured incident analysis.
 8. The generated incident analysis is delivered to `Microsoft Teams`.
 
 <br>
@@ -34,6 +34,8 @@ It then uses a locally hosted large language model to generate structured incide
 <br>
 
 ![](./images/ai_analysis.png)
+
+### Sample Output
 
 **Likely Cause**: Database connection failure leading to container restart.<br>
 **Impact**: Application unavailable due to container crashes.<br>
@@ -54,17 +56,25 @@ It then uses a locally hosted large language model to generate structured incide
 ## Key capabilities
 
 * Receives Alertmanager webhooks through FastAPI
-* Filters AI-enabled alerts using the `ai-summarizer: true` label.
+* Filters opted-in alerts using the `ai-summarizer: "true"` label.
 * Retrieves pod status, container restart counts, recent events and previous container logs.
 * Queries Prometheus for supporting time-series evidence.
 * Generates structured analysis using an Ollama-hosted LLM.
 * Sends incident summaries to Microsoft Teams.
 * Uses read-only Kubernetes RBAC.
-* Continues processing with partial results when optional dependencies failed.
+* Continues processing with available evidence when optional enrichment sources are unavailable.
 
-# Quick Start
+## Quick Start
 
-**Prerequisites**
+This guide assumes that
+1. kube-prometheus-stack is already installed in the Kubernetes cluster.
+2. Ollama is running on the host machine with the configured model downloaded.
+   3. The configured model name and Ollama URL must match the values in `k8s/deployment.yaml`.
+3. Microsoft Teams webhook has been created.
+
+<br>
+
+### Prerequisites
 
 * Docker
 * Kubernetes cluster (Minikube is used here)
@@ -75,6 +85,7 @@ It then uses a locally hosted large language model to generate structured incide
 * Ollama and a downloaded model
 * Microsoft Teams Workflow webhook
 
+### Deployment
 
 ```bash
 # Clone the repository
@@ -94,23 +105,24 @@ docker build -t ai-incident-summarizer:latest .
 # Load the image into minikube so the pod will be able to pull the image
 minikube image load ai-incident-summarizer:latest
 
-# Apply kubernetes manifests
 kubectl apply -f k8s/namespace.yaml
+
+# Create a secret for the Teams webhook url
+kubectl create secret generic ai-incident-summarizer-secret -n ai \
+  --from-literal=TEAMS_WEBHOOK_URL='https://<your-teams-webhook-url-here>'
+
 kubectl apply -f k8s/rbac/rbac.yaml
 kubectl apply -f k8s/service.yaml
 kubectl apply -f k8s/deployment.yaml
 kubectl apply -f k8s/alertmanagerconfig.yaml
 
-# Create a secret for the Teams webhook url
-kubectl create secret generic ai-incident-summarizer-secret -n ai \
-  --from-literal=TEAMS_WEBHOOK_URL='https://your-teams-webhook-url-here'
 ```
 
 <br>
 
-# Limitations and Roadmap
+## Limitations and Roadmap
 
-## Current limitations
+### Current limitations
 
 * Only pod-based alerts are currently enriched.
 * In a multi-container pod, only the first container is selected.
@@ -120,24 +132,23 @@ kubectl create secret generic ai-incident-summarizer-secret -n ai \
 * Microsoft Teams is the only notification target.
 * Resolved alerts do not yet produce a dedicated recovery message.
 * The current deployment configuration is designed for Minikube.
-* Alert processing state is not persisted. Alert-processing history and delivery status are not stored in a persistent database, so processing records are lost when the service starts. 
-  * Application does not keep a database or persistent record containing things such as
-    * which alert fingerprints were processed
-    * when they were processed
-    * whether Ollama succeeded
-    * whether the Teams message was delivered
-    * what summary was generated
-    * how many processing attempted occurred
-* Duplicate Alertmanager deliveries are not deduplicated and can send the same alert more than once. May be due to
+* Alert-processing history and delivery status are not stored in a persistent database. The service there fore does not retain records of previously processed alerts, generated summaries, or deliveries outcomes.
+  * which alert fingerprints were processed
+  * when they were processed
+  * whether Ollama succeeded
+  * whether the Teams message was delivered
+  * what summary was generated
+  * how many processing attempts occurred
+* Repeated Alertmanager notifications are not deduplicated. The same alert may therefore be processed multiple times and generate duplicate Microsoft Teams messages. This may occur when:
   * alert remains firing and Alertmanager sends another notification after its repeat interval
-  * Alertmanager retries because due to webhook timed out or returned an error
+  * Alertmanager retries because the webhook timed out or returned an error.
   * the service completed the work but Alertmanager did not receive the successful response
-  * the same alert appears again 
+  * the same alert appears again in another grouped notification
 * The service currently targets CrashLoopBackOff and container-restart scenarios.
 
-## Future plans and improvements
+### Future plans and improvements
 
-* Select the affected container in multi-containers pod.
+* Select the affected container in multi-container pod.
 * Generate dedicated resolved-alert messages.
 * Deduplicate alerts using Alertmanager fingerprints.
 * Process incidents asynchronously using a worker queue.
@@ -146,9 +157,9 @@ kubectl create secret generic ai-incident-summarizer-secret -n ai \
 * Support additional notification channels, not just Microsoft Teams.
 * Manage deployment through FluxCD and protect secrets with Sealed Secrets.
 
-# Demo
+## Demo
 
-## 1. Create a pod which crashes
+### 1. Create a pod which crashes
 
 ```yaml
 apiVersion: v1
@@ -175,7 +186,7 @@ spec:
   restartPolicy: Always
 ```
 
-## 2. Create a PrometheusRule for this crash demo
+### 2. Create a PrometheusRule for this crash demo
 
 ```yaml
 apiVersion: monitoring.coreos.com/v1
@@ -203,7 +214,7 @@ spec:
             description: "Pod crash-demo in namespace ai has restarted in the last 5 minutes."
 ```
 
-## 3. Check if alert is firing
+### 3. Check if alert is firing
 
 ```bash
 kubectl port-forward service/prometheus-kube-prometheus-prometheus -n monitoring 9090
@@ -211,6 +222,6 @@ kubectl port-forward service/prometheus-kube-prometheus-prometheus -n monitoring
 
 ![](./images/alert_firing.png)
 
-## 4. Check if you receive the alert workflow card on Teams.
+### 4. Check if you receive the alert workflow card on Teams.
 
-![](./images/ai_analysis.png)
+![](./images/teams_webhook.png)

@@ -8,7 +8,7 @@ Kubernetes alerts often lack sufficient context for rapid diagnosis. This servic
    * previous container logs
    * relevant metrics<br>
 
-It then uses a locally hosted large language model to generate structured incident analysis and sends the result to Microsoft Teams. 
+It then uses a self-hosted large language model to generate structured incident analysis and sends the result to Microsoft Teams. 
 
 
 ## Architecture and workflow
@@ -70,7 +70,7 @@ This guide assumes that
 1. kube-prometheus-stack is already installed in the Kubernetes cluster.
 2. Ollama is running on the host machine with the configured model downloaded.
    3. The configured model name and Ollama URL must match the values in `k8s/deployment.yaml`.
-3. Microsoft Teams webhook has been created.
+4. Microsoft Teams webhook has been created.
 
 <br>
 
@@ -132,13 +132,7 @@ kubectl apply -f k8s/alertmanagerconfig.yaml
 * Microsoft Teams is the only notification target.
 * Resolved alerts do not yet produce a dedicated recovery message.
 * The current deployment configuration is designed for Minikube.
-* Alert-processing history and delivery status are not stored in a persistent database. The service there fore does not retain records of previously processed alerts, generated summaries, or deliveries outcomes.
-  * which alert fingerprints were processed
-  * when they were processed
-  * whether Ollama succeeded
-  * whether the Teams message was delivered
-  * what summary was generated
-  * how many processing attempts occurred
+* Alert-processing history and delivery status are not stored persistently. The service therefore does not retain previously processed alert fingerprints, generated summaries, processing attempts, or delivery outcomes.
 * Repeated Alertmanager notifications are not deduplicated. The same alert may therefore be processed multiple times and generate duplicate Microsoft Teams messages. This may occur when:
   * alert remains firing and Alertmanager sends another notification after its repeat interval
   * Alertmanager retries because the webhook timed out or returned an error.
@@ -148,7 +142,7 @@ kubectl apply -f k8s/alertmanagerconfig.yaml
 
 ### Future plans and improvements
 
-* Select the affected container in multi-container pod.
+* Select the affected container in a multi-container pod.
 * Generate dedicated resolved-alert messages.
 * Deduplicate alerts using Alertmanager fingerprints.
 * Process incidents asynchronously using a worker queue.
